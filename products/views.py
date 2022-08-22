@@ -1,8 +1,11 @@
+from django.utils import timezone
+
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from subscriptions.models import Subscription
 from .models import Category, Product, File
 from .serializers import CategorySerializer, ProductSerializer, FileSerializer
 from rest_framework import viewsets
@@ -22,7 +25,14 @@ class ProductListView(APIView):
 
 class ProductDetailView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request, pk):
+        if not Subscription.objects.filter(
+                user=request.user,
+                expire_time__gt=timezone.now()
+        ).exists():
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
         try:
             product = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
@@ -62,7 +72,7 @@ class FileListView(APIView):
 class FileDetailView(APIView):
     def get(self, request, product_id, pk):
         try:
-            f = File.objects.get(pk=pk , product_id=product_id)
+            f = File.objects.get(pk=pk, product_id=product_id)
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = FileSerializer(f, context={'request': request})
